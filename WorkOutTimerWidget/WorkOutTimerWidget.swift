@@ -56,11 +56,16 @@ struct TimerWidgetEntryView : View {
     }
     
     var body: some View {
+        // 현재 시간을 매 번 새로 계산합니다.
+        let currentTime = Date()
+        let dynamicRemainingTime = max(0, entry.endDate.timeIntervalSince(currentTime))
+
         VStack(spacing: 2) {
-            if entry.remainingTime > 0 {
+            if dynamicRemainingTime > 0 {
                 Text("퇴근까지")
                     .font(.system(size: 12))
-                let remainingDate = Date(timeIntervalSinceNow: entry.remainingTime)
+                // dynamicRemainingTime을 사용하여 timer 스타일의 남은 시간을 계산합니다.
+                let remainingDate = Date(timeIntervalSinceNow: dynamicRemainingTime)
                 Text(remainingDate, style: .timer)
                     .monospacedDigit()
                     .font(.system(size: 20, weight: .bold))
