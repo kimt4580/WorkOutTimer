@@ -94,7 +94,7 @@ struct WorkOutTimerWidget: Widget {
         }
         .configurationDisplayName("퇴근 타이머")
         .description("퇴근까지 남은 시간을 보여줍니다.")
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .supportedFamilies([.systemSmall, .systemMedium, .accessoryCircular, .accessoryRectangular, .accessoryInline])
         .contentMarginsDisabled()
     }
 }
