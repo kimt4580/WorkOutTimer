@@ -26,17 +26,12 @@ struct Provider: AppIntentTimelineProvider {
         let endTime = defaults?.double(forKey: "workEndTime") ?? 0
         let endDate = Date(timeIntervalSince1970: endTime)
         
-        if endTime > currentDate.timeIntervalSince1970 {
-            var entries: [SimpleEntry] = []
-            // 매 초마다 업데이트하되, 다음 타임라인은 1초 후에 시작
+        if endDate.timeIntervalSince1970 > currentDate.timeIntervalSince1970 {
             let entry = SimpleEntry(date: currentDate, configuration: configuration, endDate: endDate)
-            entries.append(entry)
-        
-            return Timeline(entries: entries, policy: .after(Calendar.current.date(byAdding: .second, value: 1, to: currentDate)!))
+            return Timeline(entries: [entry], policy: .after(Calendar.current.date(byAdding: .second, value: 1, to: currentDate)!))
         } else {
-            return Timeline(entries: [
-                SimpleEntry(date: currentDate, configuration: configuration, endDate: endDate)
-            ], policy: .never)
+            let entry = SimpleEntry(date: endDate, configuration: configuration, endDate: endDate)
+            return Timeline(entries: [entry], policy: .never)
         }
     }
 }
@@ -46,7 +41,6 @@ struct SimpleEntry: TimelineEntry {
     let configuration: ConfigurationAppIntent
     let endDate: Date
     
-    // Calculate remaining time
     var remainingTime: TimeInterval {
         max(0, endDate.timeIntervalSince(date))
     }
