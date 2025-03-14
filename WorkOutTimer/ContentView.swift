@@ -17,7 +17,7 @@ struct ContentView: View {
     @State private var selectedDate = Date()
     
     // App Group UserDefaults
-    private let defaults = UserDefaults(suiteName: "group.com.taehun.WorkOutTimer")
+    private let defaults = UserDefaults(suiteName: "group.com.kimtaehun.WorkOutTimer")
     
     let availableHours = Array(1...9)
     

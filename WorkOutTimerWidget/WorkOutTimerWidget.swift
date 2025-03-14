@@ -9,7 +9,7 @@ import WidgetKit
 import SwiftUI
 
 struct Provider: AppIntentTimelineProvider {
-    let defaults = UserDefaults(suiteName: "group.com.taehun.WorkOutTimer")
+    let defaults = UserDefaults(suiteName: "group.com.kimtaehun.WorkOutTimer")
     
     func placeholder(in context: Context) -> SimpleEntry {
         let endTime = defaults?.double(forKey: "workEndTime") ?? 0
@@ -85,7 +85,7 @@ struct TimerWidgetEntryView : View {
 }
 
 struct WorkOutTimerWidget: Widget {
-    let kind: String = "com.taehun.WorkOutTimer.WorkOutTimerWidget"
+    let kind: String = "com.kimtaehun.WorkOutTimer.WorkOutTimerWidget"
     
     var body: some WidgetConfiguration {
         AppIntentConfiguration(kind: kind, intent: ConfigurationAppIntent.self, provider: Provider()) { entry in
