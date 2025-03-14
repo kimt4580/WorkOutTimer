@@ -11,7 +11,8 @@ import WidgetKit
 struct ContentView: View {
     @State private var selectedHours: Int = 9
     @State private var isWorking: Bool = false
-    @State private var startTime: Date = Date()
+    // startTime을 옵셔널(Date?)로 변경 및 기본값 nil 적용
+    @State private var startTime: Date? = nil
     @State private var workEndTime: Double = 0
     @State private var selectedDate = Date()
     
@@ -21,7 +22,8 @@ struct ContentView: View {
     let availableHours = Array(1...9)
     
     var progress: Double {
-        guard isWorking else { return 0 }
+        // startTime이 설정되지 않았으면 0 리턴
+        guard isWorking, let startTime = startTime else { return 0 }
         let endDate = Date(timeIntervalSince1970: workEndTime)
         let totalDuration = endDate.timeIntervalSince(startTime)
         let remainingTime = endDate.timeIntervalSince(Date())
@@ -39,8 +41,8 @@ struct ContentView: View {
     var body: some View {
         VStack(spacing: 20) {
             if !isWorking {
-                // Show time picker and date picker when not working
-                DatePicker("출근 시간", selection: $startTime, displayedComponents: [.hourAndMinute])
+                // DatePicker는 selectedDate를 사용합니다.
+                DatePicker("출근 시간", selection: $selectedDate, displayedComponents: [.hourAndMinute])
                     .datePickerStyle(.compact)
                     .padding(.horizontal)
                     .environment(\.locale, Locale(identifier: "ko_KR"))
@@ -99,21 +101,23 @@ struct ContentView: View {
         }
         .padding()
         .onAppear {
-            // Load saved workEndTime from UserDefaults
+            // 저장된 값을 불러올 때 Date 타입으로 변환합니다.
             workEndTime = defaults?.double(forKey: "workEndTime") ?? 0
-            startTime = defaults?.object(forKey: "workStartTime") as? Date ?? Date()
+            // 저장된 값이 없다면 startTime은 nil로 남깁니다.
+            startTime = defaults?.object(forKey: "workStartTime") as? Date
             let now = Date().timeIntervalSince1970
             isWorking = workEndTime > now
-            if isWorking {
-            } else {
+            if !isWorking {
                 selectedDate = Date()
             }
         }
     }
     
     private func startWork() {
-        workEndTime = startTime.addingTimeInterval(TimeInterval(selectedHours * 3600)).timeIntervalSince1970
-        // Save to UserDefaults and update widget
+        // DatePicker에서 선택된 값을 출근 시간으로 사용
+        startTime = selectedDate
+        workEndTime = selectedDate.addingTimeInterval(TimeInterval(selectedHours * 3600)).timeIntervalSince1970
+        // UserDefaults에 저장 및 위젯 업데이트
         defaults?.set(workEndTime, forKey: "workEndTime")
         defaults?.set(startTime, forKey: "workStartTime")
         WidgetCenter.shared.reloadAllTimelines()
@@ -121,9 +125,10 @@ struct ContentView: View {
     }
     
     private func endWork() {
-        startTime = Date()
+        // 종료 시 startTime을 nil로 설정해줍니다.
+        startTime = nil
         workEndTime = 0
-        // Save to UserDefaults and update widget
+        // UserDefaults 저장 및 위젯 업데이트
         defaults?.set(0, forKey: "workEndTime")
         defaults?.removeObject(forKey: "workStartTime")
         WidgetCenter.shared.reloadAllTimelines()
