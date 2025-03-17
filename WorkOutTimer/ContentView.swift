@@ -10,24 +10,41 @@ import WidgetKit
 
 struct ContentView: View {
     @State private var selectedHours: Int = 9
-    @State private var isWorking: Bool = false
-    // startTime을 옵셔널(Date?)로 변경 및 기본값 nil 적용
-    @State private var startTime: Date? = nil
-    @State private var workEndTime: Double = 0
-    @State private var selectedDate = Date()
+    @State private var isWorking: Bool
+    @State private var startTime: Date?
+    @State private var workEndTime: Double
+    @State private var selectedDate: Date
     
     // App Group UserDefaults
     private let defaults = UserDefaults(suiteName: "group.com.kimtaehun.WorkOutTimer")
     
     let availableHours = Array(1...9)
     
+    init() {
+        let workEndTime = UserDefaults(suiteName: "group.com.kimtaehun.WorkOutTimer")?.double(forKey: "workEndTime") ?? 0
+        let startTime = UserDefaults(suiteName: "group.com.kimtaehun.WorkOutTimer")?.object(forKey: "workStartTime") as? Date
+        let now = Date().timeIntervalSince1970
+        
+        // Initialize state variables
+        _workEndTime = State(initialValue: workEndTime)
+        _startTime = State(initialValue: startTime)
+        _isWorking = State(initialValue: workEndTime > now)
+        _selectedDate = State(initialValue: startTime ?? Date())
+    }
+    
     var progress: Double {
-        // startTime이 설정되지 않았으면 0 리턴
         guard isWorking, let startTime = startTime else { return 0 }
+        let now = Date()
         let endDate = Date(timeIntervalSince1970: workEndTime)
+        
+        // 현재 시간이 종료 시간을 초과한 경우
+        if now > endDate {
+            return 1
+        }
+        
         let totalDuration = endDate.timeIntervalSince(startTime)
-        let remainingTime = endDate.timeIntervalSince(Date())
-        return max(0, min(1, remainingTime / totalDuration))
+        let elapsedTime = now.timeIntervalSince(startTime)
+        return max(0, min(1, elapsedTime / totalDuration))
     }
     
     var formattedEndTime: String {
@@ -72,7 +89,7 @@ struct ContentView: View {
                     
                     // Content
                     VStack(spacing: 4) {
-                        Text("퇴근까지")
+                        Text(workEndTime > Date().addingTimeInterval(TimeInterval(selectedHours * 3600)).timeIntervalSince1970 ? "퇴근까지" : "퇴근 한지")
                             .font(.headline)
                         Text(Date(timeIntervalSince1970: workEndTime), style: .timer)
                             .font(.system(size: 40, weight: .bold))
@@ -100,24 +117,13 @@ struct ContentView: View {
             }
         }
         .padding()
-        .onAppear {
-            // 저장된 값을 불러올 때 Date 타입으로 변환합니다.
-            workEndTime = defaults?.double(forKey: "workEndTime") ?? 0
-            // 저장된 값이 없다면 startTime은 nil로 남깁니다.
-            startTime = defaults?.object(forKey: "workStartTime") as? Date
-            let now = Date().timeIntervalSince1970
-            isWorking = workEndTime > now
-            if !isWorking {
-                selectedDate = Date()
-            }
-        }
     }
     
     private func startWork() {
-        // DatePicker에서 선택된 값을 출근 시간으로 사용
         startTime = selectedDate
+        // 시간을 초 단위로 변환하여 더합니다 (1시간 = 3600초)
         workEndTime = selectedDate.addingTimeInterval(TimeInterval(selectedHours * 3600)).timeIntervalSince1970
-        // UserDefaults에 저장 및 위젯 업데이트
+        
         defaults?.set(workEndTime, forKey: "workEndTime")
         defaults?.set(startTime, forKey: "workStartTime")
         WidgetCenter.shared.reloadAllTimelines()
