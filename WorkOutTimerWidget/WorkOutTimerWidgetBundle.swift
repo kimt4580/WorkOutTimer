@@ -2,7 +2,7 @@
 //  WorkOutTimerWidgetBundle.swift
 //  WorkOutTimerWidget
 //
-//  Created by Lukus on 3/13/25.
+//  Created by 김태훈 on 3/13/25.
 //
 
 import WidgetKit
