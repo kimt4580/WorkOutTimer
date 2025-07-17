@@ -18,7 +18,7 @@ struct ContentView: View {
     
     // Constants
     private struct Constants {
-        static let appGroupIdentifier = "group.com.kimtaehun.WorkOutTimer"
+        static let appGroupIdentifier = "group.com.th.WorkOutTimer"
         static let workEndTimeKey = "workEndTime"
         static let workStartTimeKey = "workStartTime"
         static let workDateKey = "workDate" // 추가: 근무 날짜 저장

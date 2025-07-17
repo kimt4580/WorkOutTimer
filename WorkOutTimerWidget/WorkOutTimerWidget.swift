@@ -10,7 +10,7 @@ import SwiftUI
 
 struct Provider: AppIntentTimelineProvider {
     private struct Constants {
-        static let appGroupIdentifier = "group.com.kimtaehun.WorkOutTimer"
+        static let appGroupIdentifier = "group.com.th.WorkOutTimer"
         static let workEndTimeKey = "workEndTime"
         static let workStartTimeKey = "workStartTime"
         static let updateIntervalMinutes = 1 // 1분
@@ -234,7 +234,7 @@ struct InlineWidgetView: View {
 }
 
 struct WorkOutTimerWidget: Widget {
-    let kind: String = "com.kimtaehun.WorkOutTimer.WorkOutTimerWidget"
+    let kind: String = "com.th.WorkOutTimer.WorkOutTimerWidget"
     
     var body: some WidgetConfiguration {
         AppIntentConfiguration(kind: kind, intent: ConfigurationAppIntent.self, provider: Provider()) { entry in
