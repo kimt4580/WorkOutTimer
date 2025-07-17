@@ -21,6 +21,7 @@ struct ContentView: View {
         static let appGroupIdentifier = "group.com.kimtaehun.WorkOutTimer"
         static let workEndTimeKey = "workEndTime"
         static let workStartTimeKey = "workStartTime"
+        static let workDateKey = "workDate" // 추가: 근무 날짜 저장
     }
     
     // App Group UserDefaults with fallback
@@ -35,6 +36,15 @@ struct ContentView: View {
         return formatter
     }()
     
+    // 날짜 포맷터 추가
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.locale = Locale(identifier: "ko_KR")
+        formatter.timeZone = TimeZone(identifier: "Asia/Seoul")
+        return formatter
+    }()
+    
     let availableHours = Array(1...8)
     
     init() {
@@ -43,13 +53,32 @@ struct ContentView: View {
         
         let workEndTime = defaults.double(forKey: Constants.workEndTimeKey)
         let startTime = defaults.object(forKey: Constants.workStartTimeKey) as? Date
-        let now = Date().timeIntervalSince1970
+        let workDateString = defaults.string(forKey: Constants.workDateKey)
+        
+        let now = Date()
+        let today = Self.dateFormatter.string(from: now)
+        
+        // 🔍 날짜 검증: 저장된 근무일이 오늘과 같은지 확인
+        let isValidWorkDay = workDateString == today
+        let isCurrentlyWorking = workEndTime > now.timeIntervalSince1970 && isValidWorkDay
         
         // Initialize state variables
         _workEndTime = State(initialValue: workEndTime)
         _startTime = State(initialValue: startTime)
-        _isWorking = State(initialValue: workEndTime > now)
-        _selectedDate = State(initialValue: startTime ?? Date())
+        _isWorking = State(initialValue: isCurrentlyWorking)
+        _selectedDate = State(initialValue: startTime ?? now)
+        
+        // 🧹 어제 데이터 정리: 오늘이 아닌 날짜의 데이터는 자동 삭제
+        if !isValidWorkDay && workEndTime > 0 {
+            self.cleanupOldWorkData()
+        }
+    }
+    
+    // 🧹 이전 날짜 데이터 정리
+    private func cleanupOldWorkData() {
+        defaults.set(0, forKey: Constants.workEndTimeKey)
+        defaults.removeObject(forKey: Constants.workStartTimeKey)
+        defaults.removeObject(forKey: Constants.workDateKey)
     }
     
     var progress: Double {
@@ -79,6 +108,30 @@ struct ContentView: View {
         let totalHours = Int((workEndTime - startTime.timeIntervalSince1970) / 3600)
         let displayHours = totalHours == 9 ? 8 : totalHours // 9시간이면 8시간으로 표시
         return "🕘 \(startTimeString) ~ 🏠 \(endTimeString) (\(displayHours)시간)"
+    }
+    
+    // 🗓️ 오늘 날짜 기준으로 근무 시간 생성
+    private func createTodayWorkTime(from selectedTime: Date) -> Date {
+        let calendar = Calendar.current
+        let today = Date()
+        
+        let timeComponents = calendar.dateComponents([.hour, .minute], from: selectedTime)
+        
+        return calendar.date(bySettingHour: timeComponents.hour ?? 9,
+                           minute: timeComponents.minute ?? 0,
+                           second: 0,
+                           of: today) ?? today
+    }
+    
+    // 🔍 근무 날짜 유효성 검증
+    private func validateWorkDate() {
+        let today = Self.dateFormatter.string(from: Date())
+        let savedWorkDate = defaults.string(forKey: Constants.workDateKey)
+        
+        if savedWorkDate != today && isWorking {
+            // 다른 날짜의 근무 데이터가 있으면 정리
+            endWork()
+        }
     }
     
     var body: some View {
@@ -112,7 +165,12 @@ struct ContentView: View {
                     Text("근무시간: \(isHalfDayOff ? 4 : 8)시간")
                         .font(.title3)
                         .fontWeight(.semibold)
-                    Text("퇴근시간: \(Self.timeFormatter.string(from: selectedDate.addingTimeInterval(TimeInterval((isHalfDayOff ? 4 : 9) * 3600))))")
+                    
+                    // 🗓️ 오늘 날짜 기준으로 퇴근시간 계산
+                    let todayWorkTime = createTodayWorkTime(from: selectedDate)
+                    let endTime = todayWorkTime.addingTimeInterval(TimeInterval((isHalfDayOff ? 4 : 9) * 3600))
+                    
+                    Text("퇴근시간: \(Self.timeFormatter.string(from: endTime))")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
@@ -175,6 +233,10 @@ struct ContentView: View {
             }
         }
         .padding()
+        .onAppear {
+            // 🔄 앱이 포그라운드로 올 때마다 날짜 검증
+            validateWorkDate()
+        }
         .alert("저장 실패", isPresented: .constant(false)) {
             Button("확인") { }
         } message: {
@@ -183,15 +245,20 @@ struct ContentView: View {
     }
     
     private func startWork() {
-        // 실제 근무시간: 반차면 4시간, 풀타임이면 8시간 + 점심 1시간 (내부적으로 9시간)
+        // 🗓️ 오늘 날짜 기준으로 출근 시간 설정
+        let todayWorkTime = createTodayWorkTime(from: selectedDate)
         let totalHours = isHalfDayOff ? 4 : 9
         
-        startTime = selectedDate
-        workEndTime = selectedDate.addingTimeInterval(TimeInterval(totalHours * 3600)).timeIntervalSince1970
+        startTime = todayWorkTime
+        workEndTime = todayWorkTime.addingTimeInterval(TimeInterval(totalHours * 3600)).timeIntervalSince1970
+        
+        // 📅 오늘 날짜도 함께 저장
+        let today = Self.dateFormatter.string(from: Date())
         
         // UserDefaults 저장
         defaults.set(workEndTime, forKey: Constants.workEndTimeKey)
         defaults.set(startTime, forKey: Constants.workStartTimeKey)
+        defaults.set(today, forKey: Constants.workDateKey) // 날짜 저장
         
         // 위젯 업데이트
         WidgetCenter.shared.reloadAllTimelines()
@@ -206,6 +273,7 @@ struct ContentView: View {
         // UserDefaults 정리
         defaults.set(0, forKey: Constants.workEndTimeKey)
         defaults.removeObject(forKey: Constants.workStartTimeKey)
+        defaults.removeObject(forKey: Constants.workDateKey) // 날짜 정보도 삭제
         
         // 위젯 업데이트
         WidgetCenter.shared.reloadAllTimelines()

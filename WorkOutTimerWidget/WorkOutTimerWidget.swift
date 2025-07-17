@@ -13,7 +13,7 @@ struct Provider: AppIntentTimelineProvider {
         static let appGroupIdentifier = "group.com.kimtaehun.WorkOutTimer"
         static let workEndTimeKey = "workEndTime"
         static let workStartTimeKey = "workStartTime"
-        static let updateInterval: TimeInterval = 60 // 1분
+        static let updateIntervalMinutes = 1 // 1분
     }
     
     private let defaults: UserDefaults
@@ -56,7 +56,7 @@ struct Provider: AppIntentTimelineProvider {
         
         if endDate.timeIntervalSince1970 > currentDate.timeIntervalSince1970 {
             // 근무 중: 1분마다 업데이트 (배터리 최적화)
-            let nextUpdate = Calendar.current.date(byAdding: .minute, value: 1, to: currentDate)!
+            let nextUpdate = Calendar.current.date(byAdding: .minute, value: Constants.updateIntervalMinutes, to: currentDate)!
             return Timeline(entries: [entry], policy: .after(nextUpdate))
         } else {
             // 퇴근 후: 업데이트 불필요
