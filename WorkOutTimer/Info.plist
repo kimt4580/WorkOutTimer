@@ -13,5 +13,7 @@
 			</array>
 		</dict>
 	</array>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>퇴근 시간을 알려드리기 위해 알림 권한이 필요합니다.</string>
 </dict>
 </plist>

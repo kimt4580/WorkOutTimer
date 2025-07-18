@@ -13,7 +13,7 @@ struct Provider: AppIntentTimelineProvider {
         static let appGroupIdentifier = "group.com.th.WorkOutTimer"
         static let workEndTimeKey = "workEndTime"
         static let workStartTimeKey = "workStartTime"
-        static let updateIntervalMinutes = 1 // 1분
+        static let workDateKey = "workDate"
     }
     
     private let defaults: UserDefaults
@@ -23,67 +23,103 @@ struct Provider: AppIntentTimelineProvider {
     }
     
     func placeholder(in context: Context) -> SimpleEntry {
-        let endTime = defaults.double(forKey: Constants.workEndTimeKey)
         return SimpleEntry(
             date: .now,
             configuration: ConfigurationAppIntent(),
-            endDate: Date(timeIntervalSince1970: endTime),
+            endDate: Date().addingTimeInterval(3600),
+            isValidWork: false,
             widgetFamily: context.family
         )
     }
     
     func snapshot(for configuration: ConfigurationAppIntent, in context: Context) async -> SimpleEntry {
-        let endTime = defaults.double(forKey: Constants.workEndTimeKey)
+        let (endDate, isValid) = getWorkStatus()
         return SimpleEntry(
             date: .now,
             configuration: configuration,
-            endDate: Date(timeIntervalSince1970: endTime),
+            endDate: endDate,
+            isValidWork: isValid,
             widgetFamily: context.family
         )
     }
     
     func timeline(for configuration: ConfigurationAppIntent, in context: Context) async -> Timeline<SimpleEntry> {
         let currentDate = Date()
-        let endTime = defaults.double(forKey: Constants.workEndTimeKey)
-        let endDate = Date(timeIntervalSince1970: endTime)
+        let (endDate, isValid) = getWorkStatus()
         
         let entry = SimpleEntry(
             date: currentDate,
             configuration: configuration,
             endDate: endDate,
+            isValidWork: isValid,
             widgetFamily: context.family
         )
         
-        if endDate.timeIntervalSince1970 > currentDate.timeIntervalSince1970 {
-            // 근무 중: 1분마다 업데이트 (배터리 최적화)
-            let nextUpdate = Calendar.current.date(byAdding: .minute, value: Constants.updateIntervalMinutes, to: currentDate)!
-            return Timeline(entries: [entry], policy: .after(nextUpdate))
+        if isValid {
+            // ✨ 간단한 타임라인: 퇴근 시간 + 1분 후에 한 번만 업데이트
+            let refreshTime = endDate.addingTimeInterval(60) // 퇴근 후 1분 뒤 새로고침
+            return Timeline(entries: [entry], policy: .after(refreshTime))
         } else {
-            // 퇴근 후: 업데이트 불필요
+            // 🎉 근무하지 않음: 업데이트 안함
             return Timeline(entries: [entry], policy: .never)
         }
     }
+    
+    // 🔍 현재 근무 상태 확인 및 만료된 데이터 정리
+    private func getWorkStatus() -> (Date, Bool) {
+        let endTime = defaults.double(forKey: Constants.workEndTimeKey)
+        let workDateString = defaults.string(forKey: Constants.workDateKey)
+        
+        // 기본값 설정
+        guard endTime > 0 else {
+            return (Date().addingTimeInterval(3600), false)
+        }
+        
+        let endDate = Date(timeIntervalSince1970: endTime)
+        let currentDate = Date()
+        
+        // 🗓️ 날짜 검증
+        let today = Self.dateFormatter.string(from: currentDate)
+        let isValidWorkDay = workDateString == today
+        
+        // 🕰️ 시간 검증 (퇴근 시간이 지났는지)
+        let isWorkTimeValid = endDate > currentDate
+        
+        let isValidWork = isValidWorkDay && isWorkTimeValid
+        
+        // 🧹 만료된 데이터 자동 정리
+        if !isValidWork && endTime > 0 {
+            print("🧹 위젯에서 만료된 근무 데이터 정리")
+            defaults.set(0, forKey: Constants.workEndTimeKey)
+            defaults.removeObject(forKey: Constants.workStartTimeKey)
+            defaults.removeObject(forKey: Constants.workDateKey)
+        }
+        
+        return (endDate, isValidWork)
+    }
+    
+    // 날짜 포맷터
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.locale = Locale(identifier: "ko_KR")
+        formatter.timeZone = TimeZone(identifier: "Asia/Seoul")
+        return formatter
+    }()
 }
 
 struct SimpleEntry: TimelineEntry {
     let date: Date
     let configuration: ConfigurationAppIntent
     let endDate: Date
+    let isValidWork: Bool
     let widgetFamily: WidgetFamily
-    
-    var remainingTime: TimeInterval {
-        max(0, endDate.timeIntervalSince(date))
-    }
-    
-    var isWorkTime: Bool {
-        endDate.timeIntervalSince1970 > Date().timeIntervalSince1970
-    }
 }
 
-struct TimerWidgetEntryView : View {
+struct TimerWidgetEntryView: View {
     var entry: Provider.Entry
     
-    // Static formatter for better performance
+    // 시간 포맷터
     private static let timeFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
@@ -126,9 +162,10 @@ struct SmallWidgetView: View {
     
     var body: some View {
         VStack(spacing: 2) {
-            if entry.isWorkTime {
+            if Date() < entry.endDate {
                 Text("퇴근까지")
                     .font(.system(size: 12))
+                // ✨ SwiftUI 자동 타이머 - 0에 도달하면 자동 정지
                 Text(entry.endDate, style: .timer)
                     .monospacedDigit()
                     .font(.system(size: 20, weight: .bold))
@@ -137,16 +174,19 @@ struct SmallWidgetView: View {
                 Text("🏠 \(formattedEndTime)")
                     .font(.system(size: 14, weight: .semibold))
             } else {
-                VStack {
-                    Image("dobi")
-                        .resizable()
-                        .scaledToFill()
+                VStack(spacing: 4) {
+                    Text("🎉")
+                        .font(.system(size: 32))
+                    Text("퇴근이다!")
+                        .font(.system(size: 16, weight: .bold))
+                        .multilineTextAlignment(.center)
+                    Text("수고하셨습니다!")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
                 }
             }
         }
         .padding(.all, 8)
-        .accessibilityLabel(entry.isWorkTime ? "퇴근까지 남은 시간" : "퇴근 완료")
-        .accessibilityValue(entry.isWorkTime ? Text(entry.endDate, style: .timer) : Text("퇴근했습니다"))
     }
 }
 
@@ -157,9 +197,10 @@ struct MediumWidgetView: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                if entry.isWorkTime {
+                if Date() < entry.endDate {
                     Text("퇴근까지")
                         .font(.headline)
+                    // ✨ SwiftUI 자동 타이머 - 0에 도달하면 자동 정지
                     Text(entry.endDate, style: .timer)
                         .monospacedDigit()
                         .font(.system(size: 32, weight: .bold))
@@ -167,12 +208,16 @@ struct MediumWidgetView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 } else {
-                    Text("수고하셨습니다!")
+                    Text("🎉 수고하셨습니다!")
                         .font(.title2)
                         .fontWeight(.bold)
-                    Text("오늘 하루도 고생 많으셨어요 🎉")
+                    Text("오늘 하루도 고생 많으셨어요")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
+                    Text("푹 쉬세요! 😊")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.top, 2)
                 }
             }
             Spacer()
@@ -185,7 +230,8 @@ struct CircularWidgetView: View {
     let entry: Provider.Entry
     
     var body: some View {
-        if entry.isWorkTime {
+        if Date() < entry.endDate {
+            // ✨ SwiftUI 자동 타이머 - 0에 도달하면 자동 정지
             Text(entry.endDate, style: .timer)
                 .monospacedDigit()
                 .font(.system(size: 14, weight: .bold))
@@ -202,21 +248,25 @@ struct RectangularWidgetView: View {
     let formattedEndTime: String
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            if entry.isWorkTime {
-                Text("퇴근까지")
-                    .font(.caption2)
-                Text(entry.endDate, style: .timer)
-                    .monospacedDigit()
-                    .font(.system(size: 16, weight: .bold))
-                Text("🏠 \(formattedEndTime)")
-                    .font(.caption2)
-            } else {
-                Text("도비는 자유에요!")
-                    .font(.system(size: 14, weight: .bold))
+        HStack {
+            Spacer()
+            VStack(alignment: .center, spacing: 2) {
+                if Date() < entry.endDate {
+                    Text("퇴근까지")
+                        .font(.caption2)
+                    // ✨ SwiftUI 자동 타이머 - 0에 도달하면 자동 정지
+                    Text(entry.endDate, style: .timer)
+                        .monospacedDigit()
+                        .font(.system(size: 16, weight: .bold))
+                    Text("🏠 \(formattedEndTime)")
+                        .font(.caption2)
+                } else {
+                    Text("퇴근 완료!")
+                        .font(.system(size: 14, weight: .bold))
+                }
             }
+            Spacer()
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -224,11 +274,12 @@ struct InlineWidgetView: View {
     let entry: Provider.Entry
     
     var body: some View {
-        if entry.isWorkTime {
+        if Date() < entry.endDate {
+            // ✨ SwiftUI 자동 타이머 - 0에 도달하면 자동 정지
             Text("퇴근까지 \(entry.endDate, style: .timer)")
                 .monospacedDigit()
         } else {
-            Text("도비는 자유에요!")
+            Text("퇴근 완료!")
         }
     }
 }
@@ -255,6 +306,7 @@ struct WorkOutTimerWidget: Widget {
         date: .now,
         configuration: ConfigurationAppIntent(),
         endDate: .now.addingTimeInterval(32400),
+        isValidWork: true,
         widgetFamily: .systemSmall
     )
 }

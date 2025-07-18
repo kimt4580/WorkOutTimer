@@ -7,6 +7,7 @@
 
 import SwiftUI
 import WidgetKit
+import UserNotifications
 
 struct ContentView: View {
     @State private var selectedHours: Int = 9
@@ -15,6 +16,7 @@ struct ContentView: View {
     @State private var workEndTime: Double
     @State private var selectedDate: Date
     @State private var isHalfDayOff: Bool = false
+    @State private var notificationPermissionGranted: Bool = false
     
     // Constants
     private struct Constants {
@@ -22,6 +24,7 @@ struct ContentView: View {
         static let workEndTimeKey = "workEndTime"
         static let workStartTimeKey = "workStartTime"
         static let workDateKey = "workDate" // 추가: 근무 날짜 저장
+        static let notificationIdentifier = "workEndNotification"
     }
     
     // App Group UserDefaults with fallback
@@ -60,7 +63,11 @@ struct ContentView: View {
         
         // 🔍 날짜 검증: 저장된 근무일이 오늘과 같은지 확인
         let isValidWorkDay = workDateString == today
-        let isCurrentlyWorking = workEndTime > now.timeIntervalSince1970 && isValidWorkDay
+        
+        // 🕰️ 퇴근 시간 검증: 현재 시간이 퇴근 시간을 넘었는지 확인
+        let isWorkTimeValid = workEndTime > now.timeIntervalSince1970
+        
+        let isCurrentlyWorking = workEndTime > 0 && isValidWorkDay && isWorkTimeValid
         
         // Initialize state variables
         _workEndTime = State(initialValue: workEndTime)
@@ -68,8 +75,8 @@ struct ContentView: View {
         _isWorking = State(initialValue: isCurrentlyWorking)
         _selectedDate = State(initialValue: startTime ?? now)
         
-        // 🧹 어제 데이터 정리: 오늘이 아닌 날짜의 데이터는 자동 삭제
-        if !isValidWorkDay && workEndTime > 0 {
+        // 🧹 데이터 정리: 오늘이 아니거나 퇴근 시간이 지난 경우
+        if (!isValidWorkDay || !isWorkTimeValid) && workEndTime > 0 {
             self.cleanupOldWorkData()
         }
     }
@@ -79,6 +86,111 @@ struct ContentView: View {
         defaults.set(0, forKey: Constants.workEndTimeKey)
         defaults.removeObject(forKey: Constants.workStartTimeKey)
         defaults.removeObject(forKey: Constants.workDateKey)
+        
+        // 기존 알림도 삭제
+        cancelEndWorkNotification()
+    }
+    
+    // 🔔 알림 badge 초기화 (iOS 16+ 호환)
+    private func clearNotificationBadge() {
+        if #available(iOS 16.0, *) {
+            UNUserNotificationCenter.current().setBadgeCount(0) { error in
+                if let error = error {
+                    print("Badge 초기화 실패: \(error.localizedDescription)")
+                } else {
+                    print("📱 Badge 초기화 완료")
+                }
+            }
+        } else {
+            DispatchQueue.main.async {
+                UIApplication.shared.applicationIconBadgeNumber = 0
+                print("📱 Badge 초기화 완료 (iOS 15 이하)")
+            }
+        }
+    }
+    
+    // 📱 알림 권한 요청
+    private func requestNotificationPermission() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+            DispatchQueue.main.async {
+                self.notificationPermissionGranted = granted
+                if let error = error {
+                    print("알림 권한 요청 실패: \(error.localizedDescription)")
+                } else if granted {
+                    // 권한 승인 시 badge 초기화
+                    self.clearNotificationBadge()
+                }
+            }
+        }
+    }
+    
+    // 🔔 퇴근 시간 알림 스케줄링
+    private func scheduleEndWorkNotification(endTime: Date) {
+        // 🚫 기존 알림 먼저 취소
+        cancelEndWorkNotification()
+        
+        // ⏰ 퇴근 시간이 현재 시간보다 미래인지 확인
+        let now = Date()
+        guard endTime > now else {
+            print("퇴근 시간이 현재 시간보다 과거입니다. 알림을 설정하지 않습니다.")
+            return
+        }
+        
+        let content = UNMutableNotificationContent()
+        content.title = "🎉 퇴근 시간!"
+        content.body = "수고하셨습니다! 오늘 하루도 고생 많으셨어요."
+        content.sound = UNNotificationSound.default
+        content.badge = 1
+        
+        // 사용자 정보 추가 (알림 탭 시 앱에서 활용 가능)
+        content.userInfo = ["type": "workEnd", "endTime": endTime.timeIntervalSince1970]
+        
+        // 퇴근 시간에 맞춰 트리거 설정
+        let timeInterval = endTime.timeIntervalSinceNow
+        guard timeInterval > 0 else {
+            print("시간 간격이 음수입니다. 알림을 설정하지 않습니다.")
+            return
+        }
+        
+        let trigger = UNTimeIntervalNotificationTrigger(
+            timeInterval: timeInterval,
+            repeats: false
+        )
+        
+        let request = UNNotificationRequest(
+            identifier: Constants.notificationIdentifier,
+            content: content,
+            trigger: trigger
+        )
+        
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("알림 스케줄링 실패: \(error.localizedDescription)")
+            } else {
+                print("퇴근 알림이 \(Self.timeFormatter.string(from: endTime))에 설정되었습니다.")
+            }
+        }
+    }
+    
+    // 🗑️ 알림 취소
+    private func cancelEndWorkNotification() {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [Constants.notificationIdentifier])
+        // 퇴근 알림을 취소할 때 badge도 초기화
+        clearNotificationBadge()
+    }
+    
+    // 🔍 알림 권한 상태 확인
+    private func checkNotificationPermission() {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            DispatchQueue.main.async {
+                self.notificationPermissionGranted = settings.authorizationStatus == .authorized
+                
+                // 권한이 있으면 badge 초기화
+                if self.notificationPermissionGranted {
+                    self.clearNotificationBadge()
+                }
+            }
+        }
     }
     
     var progress: Double {
@@ -131,6 +243,17 @@ struct ContentView: View {
         if savedWorkDate != today && isWorking {
             // 다른 날짜의 근무 데이터가 있으면 정리
             endWork()
+            return
+        }
+        
+        // 🕰️ 퇴근 시간이 지났는지 확인
+        if isWorking && workEndTime > 0 {
+            let now = Date().timeIntervalSince1970
+            if now > workEndTime {
+                // 퇴근 시간이 지났으면 자동으로 퇴근 처리
+                print("⏰ 퇴근 시간이 지났습니다. 자동으로 퇴근 처리합니다.")
+                endWork()
+            }
         }
     }
     
@@ -173,11 +296,29 @@ struct ContentView: View {
                     Text("퇴근시간: \(Self.timeFormatter.string(from: endTime))")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
+                    
+                    // 🔔 알림 상태 표시
+                    HStack(spacing: 4) {
+                        Image(systemName: notificationPermissionGranted ? "bell.fill" : "bell.slash")
+                            .foregroundColor(notificationPermissionGranted ? .green : .orange)
+                        Text(notificationPermissionGranted ? "퇴근 알림 활성화" : "알림 권한 필요")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
                 }
                 .padding()
                 .background(Color.secondary.opacity(0.1))
                 .cornerRadius(12)
                 .padding(.horizontal)
+                
+                // 🔔 알림 권한 요청 버튼 (권한이 없을 때만 표시)
+                if !notificationPermissionGranted {
+                    Button("🔔 알림 허용하기") {
+                        requestNotificationPermission()
+                    }
+                    .buttonStyle(.bordered)
+                    .foregroundColor(.orange)
+                }
             } else {
                 // 현재 근무 정보 표시
                 Text(currentWorkInfo)
@@ -236,6 +377,21 @@ struct ContentView: View {
         .onAppear {
             // 🔄 앱이 포그라운드로 올 때마다 날짜 검증
             validateWorkDate()
+            // 🔔 알림 권한 상태 확인 및 badge 초기화
+            checkNotificationPermission()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            // 🔄 앱이 활성화될 때마다 상태 검증 및 badge 초기화
+            validateWorkDate()
+            if notificationPermissionGranted {
+                clearNotificationBadge()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            // 🔄 앱이 포그라운드로 올 때마다 badge 초기화
+            if notificationPermissionGranted {
+                clearNotificationBadge()
+            }
         }
         .alert("저장 실패", isPresented: .constant(false)) {
             Button("확인") { }
@@ -248,17 +404,37 @@ struct ContentView: View {
         // 🗓️ 오늘 날짜 기준으로 출근 시간 설정
         let todayWorkTime = createTodayWorkTime(from: selectedDate)
         let totalHours = isHalfDayOff ? 4 : 9
+        let endTime = todayWorkTime.addingTimeInterval(TimeInterval(totalHours * 3600))
         
-        startTime = todayWorkTime
-        workEndTime = todayWorkTime.addingTimeInterval(TimeInterval(totalHours * 3600)).timeIntervalSince1970
+        // ⚠️ 퇴근 시간이 현재 시간보다 과거인지 확인
+        let now = Date()
+        if endTime <= now {
+            // 퇴근 시간이 과거라면 내일로 설정
+            let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: todayWorkTime) ?? todayWorkTime
+            let tomorrowEndTime = tomorrow.addingTimeInterval(TimeInterval(totalHours * 3600))
+            
+            startTime = tomorrow
+            workEndTime = tomorrowEndTime.timeIntervalSince1970
+            
+            print("⚠️ 선택한 시간이 과거입니다. 내일 \(Self.timeFormatter.string(from: tomorrow))로 설정됩니다.")
+        } else {
+            startTime = todayWorkTime
+            workEndTime = endTime.timeIntervalSince1970
+        }
         
-        // 📅 오늘 날짜도 함께 저장
+        // 📅 오늘 날짜도 함께 저장 (내일로 설정되어도 오늘 날짜로 저장)
         let today = Self.dateFormatter.string(from: Date())
         
         // UserDefaults 저장
         defaults.set(workEndTime, forKey: Constants.workEndTimeKey)
         defaults.set(startTime, forKey: Constants.workStartTimeKey)
         defaults.set(today, forKey: Constants.workDateKey) // 날짜 저장
+        
+        // 🔔 알림 권한이 있으면 퇴근 알림 스케줄링
+        if notificationPermissionGranted {
+            let finalEndTime = Date(timeIntervalSince1970: workEndTime)
+            scheduleEndWorkNotification(endTime: finalEndTime)
+        }
         
         // 위젯 업데이트
         WidgetCenter.shared.reloadAllTimelines()
@@ -274,6 +450,9 @@ struct ContentView: View {
         defaults.set(0, forKey: Constants.workEndTimeKey)
         defaults.removeObject(forKey: Constants.workStartTimeKey)
         defaults.removeObject(forKey: Constants.workDateKey) // 날짜 정보도 삭제
+        
+        // 🔔 예약된 알림 취소 및 badge 초기화
+        cancelEndWorkNotification()
         
         // 위젯 업데이트
         WidgetCenter.shared.reloadAllTimelines()
