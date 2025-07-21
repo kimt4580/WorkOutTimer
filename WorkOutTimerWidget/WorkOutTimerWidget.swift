@@ -26,8 +26,8 @@ struct Provider: AppIntentTimelineProvider {
         return SimpleEntry(
             date: .now,
             configuration: ConfigurationAppIntent(),
-            endDate: Date().addingTimeInterval(3600),
-            isValidWork: false,
+            endDate: Date(), // 의미없는 값
+            isValidWork: false, // 근무하지 않음
             widgetFamily: context.family
         )
     }
@@ -70,9 +70,9 @@ struct Provider: AppIntentTimelineProvider {
         let endTime = defaults.double(forKey: Constants.workEndTimeKey)
         let workDateString = defaults.string(forKey: Constants.workDateKey)
         
-        // 기본값 설정
+        // 🔧 수정: 근무 데이터가 없으면 무효한 상태로 반환
         guard endTime > 0 else {
-            return (Date().addingTimeInterval(3600), false)
+            return (Date(), false) // 의미없는 날짜, 무효한 근무
         }
         
         let endDate = Date(timeIntervalSince1970: endTime)
@@ -134,19 +134,38 @@ struct TimerWidgetEntryView: View {
     
     var body: some View {
         Group {
-            switch entry.widgetFamily {
-            case .systemSmall:
-                SmallWidgetView(entry: entry, formattedEndTime: formattedEndTime)
-            case .systemMedium:
-                MediumWidgetView(entry: entry, formattedEndTime: formattedEndTime)
-            case .accessoryCircular:
-                CircularWidgetView(entry: entry)
-            case .accessoryRectangular:
-                RectangularWidgetView(entry: entry, formattedEndTime: formattedEndTime)
-            case .accessoryInline:
-                InlineWidgetView(entry: entry)
-            default:
-                SmallWidgetView(entry: entry, formattedEndTime: formattedEndTime)
+            // 🔧 수정: 모든 위젯 크기에서 isValidWork 체크
+            if entry.isValidWork {
+                switch entry.widgetFamily {
+                case .systemSmall:
+                    SmallWidgetView(entry: entry, formattedEndTime: formattedEndTime)
+                case .systemMedium:
+                    MediumWidgetView(entry: entry, formattedEndTime: formattedEndTime)
+                case .accessoryCircular:
+                    CircularWidgetView(entry: entry)
+                case .accessoryRectangular:
+                    RectangularWidgetView(entry: entry, formattedEndTime: formattedEndTime)
+                case .accessoryInline:
+                    InlineWidgetView(entry: entry)
+                default:
+                    SmallWidgetView(entry: entry, formattedEndTime: formattedEndTime)
+                }
+            } else {
+                // 🆕 근무하지 않을 때 표시할 뷰
+                switch entry.widgetFamily {
+                case .systemSmall:
+                    NotWorkingSmallView()
+                case .systemMedium:
+                    NotWorkingMediumView()
+                case .accessoryCircular:
+                    NotWorkingCircularView()
+                case .accessoryRectangular:
+                    NotWorkingRectangularView()
+                case .accessoryInline:
+                    NotWorkingInlineView()
+                default:
+                    NotWorkingSmallView()
+                }
             }
         }
         .widgetURL(URL(string: "workoutTimer://open"))
@@ -154,37 +173,41 @@ struct TimerWidgetEntryView: View {
     }
 }
 
-// MARK: - Widget Size Views
+// MARK: - 근무 중일 때 위젯 뷰들
 
 struct SmallWidgetView: View {
     let entry: Provider.Entry
     let formattedEndTime: String
     
     var body: some View {
-        VStack(spacing: 2) {
-            if Date() < entry.endDate {
-                Text("퇴근까지")
-                    .font(.system(size: 12))
-                // ✨ SwiftUI 자동 타이머 - 0에 도달하면 자동 정지
-                Text(entry.endDate, style: .timer)
-                    .monospacedDigit()
-                    .font(.system(size: 20, weight: .bold))
-                    .frame(maxWidth: .infinity)
-                    .multilineTextAlignment(.center)
-                Text("🏠 \(formattedEndTime)")
-                    .font(.system(size: 14, weight: .semibold))
-            } else {
-                VStack(spacing: 4) {
-                    Text("🎉")
-                        .font(.system(size: 32))
-                    Text("퇴근이다!")
-                        .font(.system(size: 16, weight: .bold))
+        // 🔧 수정: HStack으로 전체 컨테이너를 중앙 정렬
+        HStack {
+            Spacer()
+            VStack(spacing: 2) {
+                if Date() < entry.endDate {
+                    Text("퇴근까지")
+                        .font(.system(size: 12))
+                    // ✨ SwiftUI 자동 타이머 - 0에 도달하면 자동 정지
+                    Text(entry.endDate, style: .timer)
+                        .monospacedDigit()
+                        .font(.system(size: 20, weight: .bold))
                         .multilineTextAlignment(.center)
-                    Text("수고하셨습니다!")
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
+                    
+                    Text("🏠 \(formattedEndTime)")
+                        .font(.system(size: 14, weight: .semibold))
+                } else {
+                    VStack(spacing: 4) {
+                        Text("🎉")
+                            .font(.system(size: 32))
+                        Text("퇴근이다!")
+                            .font(.system(size: 16, weight: .bold))
+                        Text("수고하셨습니다!")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                    }
                 }
             }
+            Spacer()
         }
         .padding(.all, 8)
     }
@@ -195,32 +218,38 @@ struct MediumWidgetView: View {
     let formattedEndTime: String
     
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                if Date() < entry.endDate {
+        VStack(alignment: .leading, spacing: 4) {
+            if Date() < entry.endDate {
+                HStack {
+                    Spacer()
                     Text("퇴근까지")
                         .font(.headline)
-                    // ✨ SwiftUI 자동 타이머 - 0에 도달하면 자동 정지
-                    Text(entry.endDate, style: .timer)
-                        .monospacedDigit()
-                        .font(.system(size: 32, weight: .bold))
+                    Spacer()
+                }
+                // ✨ SwiftUI 자동 타이머 - 0에 도달하면 자동 정지
+                Text(entry.endDate, style: .timer)
+                    .monospacedDigit()
+                    .font(.system(size: 32, weight: .bold))
+                    .multilineTextAlignment(.center)
+                HStack {
+                    Spacer()
                     Text("🏠 \(formattedEndTime)에 퇴근")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
-                } else {
-                    Text("🎉 수고하셨습니다!")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                    Text("오늘 하루도 고생 많으셨어요")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    Text("푹 쉬세요! 😊")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .padding(.top, 2)
+                    Spacer()
                 }
+            } else {
+                Text("🎉 수고하셨습니다!")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                Text("오늘 하루도 고생 많으셨어요")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                Text("푹 쉬세요! 😊")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 2)
             }
-            Spacer()
         }
         .padding()
     }
@@ -258,6 +287,7 @@ struct RectangularWidgetView: View {
                     Text(entry.endDate, style: .timer)
                         .monospacedDigit()
                         .font(.system(size: 16, weight: .bold))
+                        .multilineTextAlignment(.center)
                     Text("🏠 \(formattedEndTime)")
                         .font(.caption2)
                 } else {
@@ -278,9 +308,86 @@ struct InlineWidgetView: View {
             // ✨ SwiftUI 자동 타이머 - 0에 도달하면 자동 정지
             Text("퇴근까지 \(entry.endDate, style: .timer)")
                 .monospacedDigit()
+                .multilineTextAlignment(.center)
         } else {
             Text("퇴근 완료!")
         }
+    }
+}
+
+// MARK: - 🆕 근무하지 않을 때 위젯 뷰들
+
+struct NotWorkingSmallView: View {
+    var body: some View {
+        // 🔧 수정: 여기도 중앙 정렬 적용
+        HStack {
+            Spacer()
+            VStack(spacing: 8) {
+                Text("😴")
+                    .font(.system(size: 32))
+                Text("휴식 중")
+                    .font(.system(size: 16, weight: .semibold))
+                Text("앱에서 출근하기")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            Spacer()
+        }
+        .padding(.all, 8)
+    }
+}
+
+struct NotWorkingMediumView: View {
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("😴")
+                        .font(.system(size: 24))
+                    Text("휴식 중")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                }
+                Text("퇴근 타이머가 설정되지 않았습니다")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                Text("앱을 열어서 출근 설정을 해주세요")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+        }
+        .padding()
+    }
+}
+
+struct NotWorkingCircularView: View {
+    var body: some View {
+        Text("😴")
+            .font(.system(size: 20))
+    }
+}
+
+struct NotWorkingRectangularView: View {
+    var body: some View {
+        HStack {
+            Spacer()
+            VStack(alignment: .center, spacing: 2) {
+                Text("😴 휴식 중")
+                    .font(.system(size: 14, weight: .semibold))
+                Text("앱에서 출근하기")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+        }
+    }
+}
+
+struct NotWorkingInlineView: View {
+    var body: some View {
+        Text("😴 휴식 중 - 앱에서 출근하기")
     }
 }
 
