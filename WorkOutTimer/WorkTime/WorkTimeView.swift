@@ -27,7 +27,7 @@ struct WorkTimeView: View {
             }
             .padding()
             .navigationTitle("퇴근 타이머")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.large)
             .onAppear {
                 viewModel.validateWorkDate()
                 viewModel.checkNotificationPermission()

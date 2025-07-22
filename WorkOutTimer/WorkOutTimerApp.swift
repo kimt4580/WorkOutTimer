@@ -51,7 +51,7 @@ struct WorkOutTimerApp: App {
     
     var body: some Scene {
         WindowGroup {
-            WorkTimeView()
+            MainTabView()  // 변경: WorkTimeView() -> MainTabView()
                 .onOpenURL { url in
                     handleDeepLink(url)
                 }
