@@ -32,12 +32,7 @@ struct RandomPickerView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    if viewModel.pickerState != .idle {
-                        Button("새 게임") {
-                            viewModel.resetPicker()
-                        }
-                        .foregroundColor(.blue)
-                    } else {
+                    if viewModel.pickerState == .idle {
                         Button("초기화") {
                             viewModel.resetAll()
                         }
