@@ -10,6 +10,7 @@ import SwiftUI
 struct RandomPickerView: View {
     @StateObject private var viewModel = RandomPickerViewModel()
     @FocusState private var focusedField: PickerFocusedField?
+    @Environment(\.colorScheme) var colorScheme
     
     enum PickerFocusedField: Hashable {
         case participant(Int)
@@ -107,7 +108,13 @@ struct RandomPickerView: View {
             }
         }
         .padding()
-        .background(Color.blue.opacity(0.05))
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(
+                    Color(colorScheme == .dark ? .systemGray6 : .systemBlue)
+                        .opacity(colorScheme == .dark ? 1 : 0.1)
+                )
+        )
         .cornerRadius(16)
     }
     
@@ -132,9 +139,18 @@ struct RandomPickerView: View {
             }
         }
         .padding(12)
-        .background(Color.white)
-        .cornerRadius(12)
-        .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(colorScheme == .dark ? .systemGray5 : .white))
+                .shadow(
+                    color: colorScheme == .dark
+                        ? .black.opacity(0.05)  // 다크모드: 희미한 흰색 그림자
+                        : .black.opacity(0.1),  // 라이트모드: 희미한 검은색 그림자
+                    radius: 2,
+                    x: 0,
+                    y: 1
+                )
+        )
     }
     
     private var addParticipantCard: some View {

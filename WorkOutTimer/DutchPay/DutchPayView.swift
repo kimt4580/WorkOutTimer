@@ -10,6 +10,7 @@ import SwiftUI
 struct DutchPayView: View {
     @StateObject private var viewModel = DutchPayViewModel()
     @FocusState private var focusedField: FocusedField?
+    @Environment(\.colorScheme) var colorScheme
     
     enum FocusedField: Hashable {
         case totalAmount
@@ -85,7 +86,13 @@ struct DutchPayView: View {
             }
         }
         .padding()
-        .background(Color.secondary.opacity(0.1))
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(
+                    Color(colorScheme == .dark ? .systemGray6 : .secondaryLabel)
+                        .opacity(colorScheme == .dark ? 1 : 0.1)
+                )
+        )
         .cornerRadius(12)
     }
     
@@ -120,7 +127,13 @@ struct DutchPayView: View {
             }
         }
         .padding()
-        .background(Color.secondary.opacity(0.1))
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(
+                    Color(colorScheme == .dark ? .systemGray6 : .secondaryLabel)
+                        .opacity(colorScheme == .dark ? 1 : 0.1)
+                )
+        )
         .cornerRadius(12)
     }
     
@@ -216,7 +229,13 @@ struct DutchPayView: View {
             }
         }
         .padding()
-        .background(Color.blue.opacity(0.05))
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(
+                    Color(colorScheme == .dark ? .systemGray6 : .systemBlue)
+                        .opacity(colorScheme == .dark ? 1 : 0.1)
+                )
+        )
         .cornerRadius(8)
     }
     

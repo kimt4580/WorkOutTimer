@@ -19,6 +19,8 @@ struct PathSegment: Identifiable {
 }
 
 struct AnimatedLadderView: View {
+    @Environment(\.colorScheme) var colorScheme
+    
     @State private var participants: [String] = [] // 빈 배열로 초기화
     @State private var winnerCount: Int = 1
     @State private var results: [String] = []
@@ -158,8 +160,13 @@ struct AnimatedLadderView: View {
                 }
             }
             .padding()
-            .background(Color.blue.opacity(0.1))
-            .cornerRadius(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(
+                        Color(colorScheme == .dark ? .systemGray6 : .blue)
+                            .opacity(colorScheme == .dark ? 1 : 0.1)
+                    )
+            )
             
             // 당첨자 수 선택
             if !participants.isEmpty {
@@ -340,7 +347,7 @@ struct AnimatedLadderView: View {
                 .padding(40)
                 .background(
                     RoundedRectangle(cornerRadius: 20)
-                        .fill(Color(.systemBackground))
+                        .fill(Color(colorScheme == .dark ? .systemGray6 : .white))
                         .shadow(radius: 20)
                 )
                 .padding(.horizontal, 20)
@@ -860,7 +867,7 @@ struct AnimatedLadderView: View {
     
     private func getResultColor(index: Int) -> Color {
         // 모든 완료된 결과들의 색상을 표시
-        for (participant, result) in finalResults {
+        for (participant, _) in finalResults {
             if let participantIndex = participants.firstIndex(of: participant) {
                 let finalColumn = calculateFinalColumn(participantIndex: participantIndex)
                 if finalColumn == index {
