@@ -163,7 +163,7 @@ struct AnimatedLadderView: View {
             .background(
                 RoundedRectangle(cornerRadius: 12)
                     .fill(
-                        Color(colorScheme == .dark ? .systemGray6 : .blue)
+                        Color(colorScheme == .dark ? .systemGray6 : .systemBlue)
                             .opacity(colorScheme == .dark ? 1 : 0.1)
                     )
             )
