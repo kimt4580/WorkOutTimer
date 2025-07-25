@@ -27,6 +27,11 @@ struct MainTabView: View {
                     Image(systemName: "dice.fill")
                     Text("랜덤 뽑기")
                 }
+            AnimatedLadderView()
+                .tabItem {
+                    Image(systemName: "gamecontroller.fill")
+                    Text("사다리 타기")
+                }
         }
         .accentColor(.blue)
     }

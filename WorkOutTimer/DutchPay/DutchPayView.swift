@@ -27,10 +27,16 @@ struct DutchPayView: View {
                     peopleListSection
                     
                     if viewModel.isCalculationValid {
-                        resultSection
+                        VStack(spacing: 16) {
+                            resultSection
+                            
+                            Button("공유하기") {
+                                shareResult()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.large)
+                        }
                     }
-                    
-                    actionButtonsSection
                 }
                 .padding()
             }
@@ -120,9 +126,22 @@ struct DutchPayView: View {
     
     private var peopleListSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("참여자 목록")
-                .font(.headline)
-                .foregroundColor(.primary)
+            
+            HStack {
+                Text("참여자 목록")
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                
+                Spacer()
+                
+                if !viewModel.people.isEmpty && viewModel.people.contains(where: { $0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !$0.name.hasPrefix("참여자") }) {
+                    Button("자동으로 이름 채우기") {
+                        viewModel.fillAutoNames()
+                    }
+                    .font(.subheadline)
+                    .foregroundColor(.blue)
+                }
+            }
             
             ForEach(Array(viewModel.people.enumerated()), id: \.element.id) { index, person in
                 personRow(index: index, person: person)
@@ -156,7 +175,7 @@ struct DutchPayView: View {
                     .foregroundColor(.secondary)
                     .frame(width: 20, alignment: .leading)
                 
-                TextField("이름", text: Binding(
+                TextField("참여자\(index + 1)", text: Binding(
                     get: { person.name },
                     set: { viewModel.updatePersonName(at: index, name: $0) }
                 ))

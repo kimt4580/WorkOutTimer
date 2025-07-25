@@ -73,13 +73,24 @@ struct RandomPickerView: View {
     private var participantsSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text("참가자 목록")
+                Text("참여자 목록")
                     .font(.title2)
                     .fontWeight(.bold)
-                Spacer()
+                
                 Text("(\(viewModel.participants.count)/10명)")
                     .font(.caption)
                     .foregroundColor(.secondary)
+                
+                Spacer()
+                
+                // 자동 이름 채우기 버튼 추가
+                if !viewModel.participants.isEmpty && viewModel.participants.contains(where: { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !$0.hasPrefix("참여자") }) {
+                    Button("자동으로 이름 채우기") {
+                        viewModel.fillAutoNames()
+                    }
+                    .font(.subheadline)
+                    .foregroundColor(.blue)
+                }
             }
             
             LazyVGrid(columns: [
@@ -103,7 +114,7 @@ struct RandomPickerView: View {
     private func participantCard(index: Int, participant: String) -> some View {
         VStack(spacing: 8) {
             HStack {
-                TextField("이름", text: Binding(
+                TextField("참여자\(index + 1)", text: Binding(
                     get: { participant },
                     set: { viewModel.updateParticipant(at: index, name: $0) }
                 ))
@@ -132,7 +143,7 @@ struct RandomPickerView: View {
                 Image(systemName: "plus.circle.fill")
                     .font(.title2)
                     .foregroundColor(.blue)
-                Text("참가자 추가")
+                Text("참여자 추가")
                     .font(.caption)
                     .foregroundColor(.blue)
             }
